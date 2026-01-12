@@ -1,34 +1,45 @@
 const background = document.getElementById("background");
 const title = document.getElementById("title");
-const video = document.getElementById("petVideo");
+const frame = document.getElementById("petFrame");
 const hotspots = Array.from(document.querySelectorAll(".hotspot"));
 const scene = document.getElementById("scene");
+let titleTimeouts = [];
+let animationTimer = null;
+let currentFrameIndex = 0;
+let currentFrames = [];
+let currentFps = 0;
+let loadToken = 0;
 
 const PETS = {
   snail: {
     label: "Snail",
     image: "PetsStudiesAnimation/PetsSnail.PNG",
-    video: "PetsStudiesAnimation/Snail.MP4",
+    framesFolder: "PetsStudiesAnimation/Snail",
+    fps: 8,
   },
   beetle: {
     label: "Dorcus",
     image: "PetsStudiesAnimation/PetsBeetle.PNG",
-    video: "PetsStudiesAnimation/Beetle.MP4",
+    framesFolder: "PetsStudiesAnimation/Beetle",
+    fps: 10,
   },
   gecko: {
     label: "Leopard Gecko",
     image: "PetsStudiesAnimation/PetsGecko.PNG",
-    video: "PetsStudiesAnimation/Gecko.MP4",
+    framesFolder: "PetsStudiesAnimation/Gecko",
+    fps: 10,
   },
   fish: {
     label: "Red Wolf Fish",
     image: "PetsStudiesAnimation/PetsFish.PNG",
-    video: "PetsStudiesAnimation/Fish.MP4",
+    framesFolder: "PetsStudiesAnimation/Fish",
+    fps: 10,
   },
   python: {
     label: "Ball Python",
     image: "PetsStudiesAnimation/PetsPython.PNG",
-    video: "PetsStudiesAnimation/Python.MP4",
+    framesFolder: "PetsStudiesAnimation/Python",
+    fps: 10,
   },
 };
 
@@ -47,30 +58,89 @@ function positionHotspots() {
 }
 
 function setTitle(text) {
-  title.textContent = text;
+  titleTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
+  titleTimeouts = [];
+  title.classList.remove("fade-in", "fade-out");
+  title.classList.add("fade-out");
+  const swapTimeout = window.setTimeout(() => {
+    title.textContent = text;
+    title.classList.remove("fade-out");
+    title.classList.add("fade-in");
+  }, 600);
+  titleTimeouts.push(swapTimeout);
 }
 
 function resetScene() {
   background.src = "PetsStudiesAnimation/Pets.PNG";
   setTitle("Pets Studies");
-  video.pause();
-  video.removeAttribute("src");
-  video.load();
-  video.classList.remove("active");
+  frame.classList.remove("active");
+  stopAnimation();
 }
 
-function activatePet(key) {
+function stopAnimation() {
+  if (animationTimer) {
+    clearInterval(animationTimer);
+    animationTimer = null;
+  }
+  currentFrameIndex = 0;
+  currentFrames = [];
+  frame.removeAttribute("src");
+}
+
+function loadFrames(folder, maxFrames = 240) {
+  const frames = [];
+  return new Promise((resolve) => {
+    let index = 1;
+    const loadNext = () => {
+      if (index > maxFrames) {
+        resolve(frames);
+        return;
+      }
+      const src = `${folder}/${index}.png`;
+      const img = new Image();
+      img.onload = () => {
+        frames.push(src);
+        index += 1;
+        loadNext();
+      };
+      img.onerror = () => {
+        resolve(frames);
+      };
+      img.src = src;
+    };
+    loadNext();
+  });
+}
+
+function startAnimation(framesList, fps) {
+  stopAnimation();
+  if (!framesList.length || !fps) {
+    return;
+  }
+  currentFrames = framesList;
+  currentFps = fps;
+  frame.src = currentFrames[0];
+  frame.classList.add("active");
+  animationTimer = window.setInterval(() => {
+    currentFrameIndex = (currentFrameIndex + 1) % currentFrames.length;
+    frame.src = currentFrames[currentFrameIndex];
+  }, 1000 / currentFps);
+}
+
+async function activatePet(key) {
   const pet = PETS[key];
   if (!pet) {
     return;
   }
+  loadToken += 1;
+  const currentToken = loadToken;
   background.src = pet.image;
   setTitle(pet.label);
-  video.src = pet.video;
-  video.classList.add("active");
-  video.play().catch(() => {
-    video.classList.add("active");
-  });
+  const framesList = await loadFrames(pet.framesFolder);
+  if (currentToken !== loadToken) {
+    return;
+  }
+  startAnimation(framesList, pet.fps);
 }
 
 scene.addEventListener("click", (event) => {
